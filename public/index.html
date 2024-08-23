@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jigsaw Puzzle Fun</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Unlock the Fun of Jigsaw Puzzles: Challenge Your Mind, Piece by Piece!</h1>
+    </header>
+
+    <section class="upload-section">
+        <h2>Upload your puzzle here</h2>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <label for="image">Upload an image:</label><br>
+            <input type="file" id="image" name="image" required><br><br>
+            <label for="question">Enter your question:</label><br>
+            <input type="text" id="question" name="question" required><br><br>
+            <input type="submit" value="Submit">
+        </form>
+        <% if (answer) { %>
+            <h2>Answer:</h2>
+            <p><%= answer %></p>
+        <% } %>
+    </section>
+
+
+    <section class="projects">
+        <h2>Puzzles</h2>
+        <div class="project-list">
+            <div class="project">
+                <img src="./assets/IMG_9758.jpeg" alt="Puzzle 1">
+                <h3>The Music Store</h3>
+                <p>New York, 2024</p>
+                <button>Read More</button>
+            </div>
+            <div class="project">
+                <img src="/assets/IMG_9758.jpeg" alt="Project 2">
+                <h3>Greenspacing</h3>
+                <p>Copenhagen, 2022</p>
+                <button>Read More</button>
+            </div>
+            <div class="project">
+                <img src="./assets/IMG_9758.jpeg" alt="Project 3">
+                <h3>The Future</h3>
+                <p>Los Angeles, 2025</p>
+                <button>Read More</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="explore">
+        <h2>Explore</h2>
+        <div class="explore-list">
+            <div class="explore-item">
+                <h3>The Cultural Center</h3>
+                <p>Interior restoration of a beloved space for artistic expression.</p>
+                <img src="/assets/IMG_9758.jpeg" alt="Explore 1">
+            </div>
+            <div class="explore-item">
+                <h3>Greenspacing</h3>
+                <p>An observation deck created from recycled materials to honor the outlands.</p>
+                <img src="/assets/IMG_9758.jpeg" alt="Explore 2">
+            </div>
+        </div>
+    </section>
+</body>
+</html>

@@ -1,0 +1,108 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+header {
+    text-align: center;
+    padding: 2rem 1rem;
+    background-color: #f5f5f5;
+    border-bottom: 2px solid #ddd;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    color: #333;
+}
+
+header p {
+    font-size: 1.25rem;
+    color: #555;
+}
+
+.projects, .explore, .upload-section {
+    padding: 2rem 1rem;
+}
+
+.projects h2, .explore h2, .upload-section h2 {
+    font-size: 2rem;
+    color: #333;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.project-list, .explore-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.project, .explore-item {
+    margin: 1rem;
+    text-align: center;
+}
+
+.project img, .explore-item img {
+    width: 100%;
+    height: auto;
+    max-width: 300px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+
+.project h3, .explore-item h3 {
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.project p, .explore-item p {
+    font-size: 1rem;
+    color: #555;
+}
+
+button {
+    background-color: #007BFF;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.upload-section form {
+    text-align: center;
+}
+
+.upload-section label, .upload-section input {
+    display: block;
+    margin: 0.5rem auto;
+}
+
+.upload-section input[type="text"], .upload-section input[type="file"] {
+    padding: 0.5rem;
+    width: 80%;
+    max-width: 400px;
+}
+
+.upload-section input[type="submit"] {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.upload-section input[type="submit"]:hover {
+    background-color: #218838;
+}
+
