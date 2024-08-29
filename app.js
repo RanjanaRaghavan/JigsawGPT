@@ -34,7 +34,16 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 1024 * 1024 },
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB limit
+    fileFilter: (req, file, cb) => {
+        // Check file type
+        if (file.mimetype == "image/png" || file.mimetype == "image/jpg" || file.mimetype == "image/jpeg" || file.mimetype == "image/gif" || file.mimetype == "image/webp") {
+            cb(null, true);
+        } else {
+            cb(null, false);
+            return cb(new Error('Only .png, .jpg, .jpeg, .gif and .webp format allowed!'));
+        }
+    }
 });
 
 app.use(express.static('public'));
@@ -48,32 +57,65 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/upload', upload.single('image'), async (req, res) => {
-    const { question } = req.body;
-    const imagePath = req.file.path;
-
+app.post('/upload', upload.fields([
+    { name: 'completedPuzzle', maxCount: 1 },
+    { name: 'puzzlePiece', maxCount: 1 }
+]), async (req, res) => {
+    let completedPuzzlePath, puzzlePiecePath;
     try {
-        const image = fs.readFileSync(imagePath, { encoding: 'base64' });
+        if (!req.files['completedPuzzle'] || !req.files['puzzlePiece']) {
+            throw new Error('Missing required files');
+        }
 
-        const response = await openai.completions.create({
-            model: 'gpt-3.5-turbo',
-            prompt: `Question: ${question}\n\nImage (base64): ${image}`,
-            max_tokens: 150,
+        completedPuzzlePath = req.files['completedPuzzle'][0].path;
+        puzzlePiecePath = req.files['puzzlePiece'][0].path;
+
+        const completedPuzzle = fs.readFileSync(completedPuzzlePath, { encoding: 'base64' });
+        const puzzlePiece = fs.readFileSync(puzzlePiecePath, { encoding: 'base64' });
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",  // Update this to the latest supported model
+            messages: [
+                {
+                    role: "user",
+                    content: [
+                        { type: "text", text: "Here are two images. The first is a completed puzzle, and the second is a single puzzle piece. Please analyze where the puzzle piece might fit in the completed puzzle. Describe the location and, if possible, provide coordinates or a description of where to circle the area in the completed puzzle image." },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: `data:image/jpeg;base64,${completedPuzzle}`
+                            }
+                        },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: `data:image/jpeg;base64,${puzzlePiece}`
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens: 300
         });
 
-        const answer = response.choices[0].text.trim();
+        const answer = response.choices[0].message.content;
 
-        res.render('index', { answer });
+        res.json({ answer });
     } catch (error) {
-        console.error(error);
-        res.status(500).send('Internal Server Error');
+        console.error('Detailed error:', error);
+        res.status(400).json({ error: 'Bad Request', details: error.message });
     } finally {
-        // Delete the uploaded image
-        fs.unlink(imagePath, (err) => {
-            if (err) {
-                console.error(err);
-            }
-        });
+        // Delete the uploaded images if they exist
+        if (completedPuzzlePath) {
+            fs.unlink(completedPuzzlePath, (err) => {
+                if (err) console.error(err);
+            });
+        }
+        if (puzzlePiecePath) {
+            fs.unlink(puzzlePiecePath, (err) => {
+                if (err) console.error(err);
+            });
+        }
     }
 });
 

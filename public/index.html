@@ -3,68 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jigsaw Puzzle Fun</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>JigsawGPT</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-container {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+        .upload-box {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 45%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .upload-box h2 {
+            margin-top: 0;
+            color: #444;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-label {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .file-label:hover {
+            background-color: #45a049;
+        }
+        .file-name {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .image-container {
+            width: 100%;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .image-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        #uploadBtn {
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+        #uploadBtn:hover {
+            background-color: #007B9A;
+        }
+        #result {
+            margin-top: 30px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            display: none;
+        }
+        #resultImage {
+            max-width: 100%;
+            height: auto;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>Unlock the Fun of Jigsaw Puzzles: Challenge Your Mind, Piece by Piece!</h1>
-    </header>
-
-    <section class="upload-section">
-        <h2>Upload your puzzle here</h2>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            <label for="image">Upload an image:</label><br>
-            <input type="file" id="image" name="image" required><br><br>
-            <label for="question">Enter your question:</label><br>
-            <input type="text" id="question" name="question" required><br><br>
-            <input type="submit" value="Submit">
-        </form>
-        <% if (answer) { %>
-            <h2>Answer:</h2>
-            <p><%= answer %></p>
-        <% } %>
-    </section>
-
-
-    <section class="projects">
-        <h2>Puzzles</h2>
-        <div class="project-list">
-            <div class="project">
-                <img src="./assets/IMG_9758.jpeg" alt="Puzzle 1">
-                <h3>The Music Store</h3>
-                <p>New York, 2024</p>
-                <button>Read More</button>
+    <h1>JigsawGPT</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div class="upload-container">
+            <div class="upload-box">
+                <h2>Completed Puzzle</h2>
+                <input type="file" id="completedPuzzle" name="completedPuzzle" accept="image/*" class="file-input" required>
+                <label for="completedPuzzle" class="file-label">Choose File</label>
+                <div id="completedPuzzleName" class="file-name"></div>
+                <div class="image-container">
+                    <img id="completedPuzzlePreview" class="image-preview" alt="Completed Puzzle Preview">
+                </div>
             </div>
-            <div class="project">
-                <img src="/assets/IMG_9758.jpeg" alt="Project 2">
-                <h3>Greenspacing</h3>
-                <p>Copenhagen, 2022</p>
-                <button>Read More</button>
-            </div>
-            <div class="project">
-                <img src="./assets/IMG_9758.jpeg" alt="Project 3">
-                <h3>The Future</h3>
-                <p>Los Angeles, 2025</p>
-                <button>Read More</button>
+            <div class="upload-box">
+                <h2>Puzzle Piece</h2>
+                <input type="file" id="puzzlePiece" name="puzzlePiece" accept="image/*" class="file-input" required>
+                <label for="puzzlePiece" class="file-label">Choose File</label>
+                <div id="puzzlePieceName" class="file-name"></div>
+                <div class="image-container">
+                    <img id="puzzlePiecePreview" class="image-preview" alt="Puzzle Piece Preview">
+                </div>
             </div>
         </div>
-    </section>
+        <button type="submit" id="uploadBtn">Analyze</button>
+    </form>
+    <div id="result">
+        <h2>Analysis Result</h2>
+        <p id="resultText"></p>
+        <img id="resultImage" alt="Result with circled area">
+    </div>
 
-    <section class="explore">
-        <h2>Explore</h2>
-        <div class="explore-list">
-            <div class="explore-item">
-                <h3>The Cultural Center</h3>
-                <p>Interior restoration of a beloved space for artistic expression.</p>
-                <img src="/assets/IMG_9758.jpeg" alt="Explore 1">
-            </div>
-            <div class="explore-item">
-                <h3>Greenspacing</h3>
-                <p>An observation deck created from recycled materials to honor the outlands.</p>
-                <img src="/assets/IMG_9758.jpeg" alt="Explore 2">
-            </div>
-        </div>
-    </section>
+    <script src="script.js"></script>
 </body>
 </html>
