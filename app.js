@@ -3,7 +3,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 
 const app = express();
 const PORT = 3000;
@@ -16,8 +16,8 @@ const PORT = 3000;
 //     api_key: process.env.OPENAI_API_KEY
 // });
 const openai = new OpenAI({
-    api_key: process.env.OPENAI_API_KEY
-  });
+    apiKey: process.env.OPENAI_API_KEY
+});
 
 // Set up multer for handling file uploads
 const storage = multer.diskStorage({
@@ -61,35 +61,34 @@ app.post('/upload', upload.fields([
     { name: 'completedPuzzle', maxCount: 1 },
     { name: 'puzzlePiece', maxCount: 1 }
 ]), async (req, res) => {
-    let completedPuzzlePath, puzzlePiecePath;
     try {
-        if (!req.files['completedPuzzle'] || !req.files['puzzlePiece']) {
-            throw new Error('Missing required files');
-        }
+        const completedPuzzle = req.files['completedPuzzle'][0];
+        const puzzlePiece = req.files['puzzlePiece'][0];
 
-        completedPuzzlePath = req.files['completedPuzzle'][0].path;
-        puzzlePiecePath = req.files['puzzlePiece'][0].path;
-
-        const completedPuzzle = fs.readFileSync(completedPuzzlePath, { encoding: 'base64' });
-        const puzzlePiece = fs.readFileSync(puzzlePiecePath, { encoding: 'base64' });
+        // Read the images and convert them to base64
+        const completedPuzzleBase64 = fs.readFileSync(completedPuzzle.path, { encoding: 'base64' });
+        const puzzlePieceBase64 = fs.readFileSync(puzzlePiece.path, { encoding: 'base64' });
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",  // Update this to the latest supported model
+            model: "gpt-4o-mini",
             messages: [
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Here are two images. The first is a completed puzzle, and the second is a single puzzle piece. Please analyze where the puzzle piece might fit in the completed puzzle. Describe the location and, if possible, provide coordinates or a description of where to circle the area in the completed puzzle image." },
+                        { 
+                            type: "text", 
+                            text: "Analyze these two images. The first is a completed puzzle, and the second is a single puzzle piece. Determine where the puzzle piece fits in the completed puzzle. Provide your answer in the following format: 'The piece fits at coordinates (x, y) with a radius of z.' Where x and y are percentages of the image width and height, and z is a percentage of the image width. For example: 'The piece fits at coordinates (25, 30) with a radius of 5.'" 
+                        },
                         {
                             type: "image_url",
                             image_url: {
-                                url: `data:image/jpeg;base64,${completedPuzzle}`
+                                url: `data:image/jpeg;base64,${completedPuzzleBase64}`
                             }
                         },
                         {
                             type: "image_url",
                             image_url: {
-                                url: `data:image/jpeg;base64,${puzzlePiece}`
+                                url: `data:image/jpeg;base64,${puzzlePieceBase64}`
                             }
                         }
                     ]
@@ -98,23 +97,38 @@ app.post('/upload', upload.fields([
             max_tokens: 300
         });
 
-        const answer = response.choices[0].message.content;
+        const aiResponse = response.choices[0].message.content;
+        console.log("AI Response:", aiResponse);  // Log the full AI response
 
-        res.json({ answer });
-    } catch (error) {
-        console.error('Detailed error:', error);
-        res.status(400).json({ error: 'Bad Request', details: error.message });
-    } finally {
-        // Delete the uploaded images if they exist
-        if (completedPuzzlePath) {
-            fs.unlink(completedPuzzlePath, (err) => {
-                if (err) console.error(err);
+        // Parse the AI response to extract coordinates and radius
+        const match = aiResponse.match(/coordinates \((\d+(?:\.\d+)?), (\d+(?:\.\d+)?)\) with a radius of (\d+(?:\.\d+)?)/);
+        
+        if (match) {
+            const [, x, y, radius] = match.map(Number);
+            
+            res.json({
+                circleInfo: { x, y, radius },
+                originalResponse: aiResponse
+            });
+        } else {
+            console.log("Failed to parse AI response. Regex didn't match.");
+            // If we can't parse the coordinates, send back the original response
+            res.json({
+                error: 'Unable to parse coordinates',
+                originalResponse: aiResponse
             });
         }
-        if (puzzlePiecePath) {
-            fs.unlink(puzzlePiecePath, (err) => {
-                if (err) console.error(err);
-            });
+
+    } catch (error) {
+        console.error('Detailed error:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    } finally {
+        // Clean up uploaded files
+        if (req.files['completedPuzzle']) {
+            fs.unlinkSync(req.files['completedPuzzle'][0].path);
+        }
+        if (req.files['puzzlePiece']) {
+            fs.unlinkSync(req.files['puzzlePiece'][0].path);
         }
     }
 });
