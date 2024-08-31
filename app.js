@@ -1,138 +1,181 @@
-require('dotenv').config();
+console.log('Starting server...');
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { OpenAI } = require('openai');
+const Jimp = require('jimp');
 
-const app = express();
-const PORT = 3000;
+try {
+    // Initialize the Express application
+    const app = express();
 
-// OpenAI API configuration
-// const configuration = new Configuration({
-//     apiKey: process.env.OPENAI_API_KEY,
-// });
-// const openai = new OpenAIApi({
-//     api_key: process.env.OPENAI_API_KEY
-// });
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
-
-// Set up multer for handling file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = 'uploads';
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir);
+    // Configure multer for file uploads
+    const storage = multer.diskStorage({
+        destination: function (req, file, cb) {
+            cb(null, 'uploads/') // Make sure this directory exists
+        },
+        filename: function (req, file, cb) {
+            cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname))
         }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname); 
-    },
-});
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB limit
-    fileFilter: (req, file, cb) => {
-        // Check file type
-        if (file.mimetype == "image/png" || file.mimetype == "image/jpg" || file.mimetype == "image/jpeg" || file.mimetype == "image/gif" || file.mimetype == "image/webp") {
-            cb(null, true);
-        } else {
-            cb(null, false);
-            return cb(new Error('Only .png, .jpg, .jpeg, .gif and .webp format allowed!'));
-        }
-    }
-});
+    });
 
-app.use(express.static('public'));
+    const upload = multer({ storage: storage });
 
-// Set the view engine to use HTML files
-app.engine('html', require('ejs').renderFile);
-app.set('view engine', 'html');
-app.set('views', path.join(__dirname, 'public'));
+    // Set up server, multer, etc. (same as your current setup)
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+    app.post('/upload', upload.fields([
+        { name: 'completedPuzzle', maxCount: 1 },
+        { name: 'puzzlePiece', maxCount: 1 }
+    ]), async (req, res) => {
+        console.log('Received upload request');
+        let completedPuzzlePath, puzzlePiecePath;
+        try {
+            if (!req.files.completedPuzzle || !req.files.puzzlePiece) {
+                console.log('Missing required files');
+                return res.status(400).json({ error: 'Missing required files' });
+            }
 
-app.post('/upload', upload.fields([
-    { name: 'completedPuzzle', maxCount: 1 },
-    { name: 'puzzlePiece', maxCount: 1 }
-]), async (req, res) => {
-    try {
-        const completedPuzzle = req.files['completedPuzzle'][0];
-        const puzzlePiece = req.files['puzzlePiece'][0];
+            completedPuzzlePath = req.files['completedPuzzle'][0].path;
+            puzzlePiecePath = req.files['puzzlePiece'][0].path;
 
-        // Read the images and convert them to base64
-        const completedPuzzleBase64 = fs.readFileSync(completedPuzzle.path, { encoding: 'base64' });
-        const puzzlePieceBase64 = fs.readFileSync(puzzlePiece.path, { encoding: 'base64' });
+            console.log('Files uploaded successfully');
+            console.log('Completed puzzle path:', completedPuzzlePath);
+            console.log('Puzzle piece path:', puzzlePiecePath);
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                {
-                    role: "user",
-                    content: [
-                        { 
-                            type: "text", 
-                            text: "Analyze these two images. The first is a completed puzzle, and the second is a single puzzle piece. Determine where the puzzle piece fits in the completed puzzle. Provide your answer in the following format: 'The piece fits at coordinates (x, y) with a radius of z.' Where x and y are percentages of the image width and height, and z is a percentage of the image width. For example: 'The piece fits at coordinates (25, 30) with a radius of 5.'" 
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: `data:image/jpeg;base64,${completedPuzzleBase64}`
+            // Image processing
+            console.log('Starting image processing');
+            let completedPuzzleImg, puzzlePieceImg;
+            try {
+                [completedPuzzleImg, puzzlePieceImg] = await Promise.all([
+                    Jimp.read(completedPuzzlePath),
+                    Jimp.read(puzzlePiecePath)
+                ]);
+                console.log('Image processing complete');
+            } catch (imgError) {
+                console.error('Error processing images:', imgError);
+                return res.status(500).json({ error: 'Error processing images', details: imgError.message });
+            }
+
+            // Perform template matching
+            console.log('Starting template matching');
+            let matchResult;
+            try {
+                matchResult = await findBestMatch(completedPuzzleImg, puzzlePieceImg);
+                console.log('Template matching complete', matchResult);
+            } catch (matchError) {
+                console.error('Error in template matching:', matchError);
+                return res.status(500).json({ error: 'Error in template matching', details: matchError.message });
+            }
+
+            const { x, y, score } = matchResult;
+
+            console.log('Starting GPT-4 analysis');
+            if (score > 0.5) { // Adjusted from 0.8 to 0.5
+                try {
+                    const gptResponse = await openai.chat.completions.create({
+                        model: "gpt-4-1106-preview", // Make sure this is the correct model name
+                        messages: [
+                            {
+                                role: "system",
+                                content: "You are an AI assistant specialized in analyzing puzzle piece placements. You have access to image processing results and can explain why a piece fits in a specific location based on coordinates and match scores."
+                            },
+                            {
+                                role: "user",
+                                content: `I've used image processing to find a match for a puzzle piece at coordinates (${x}, ${y}) with a confidence score of ${score.toFixed(2)}. The completed puzzle image is ${completedPuzzleImg.getWidth()} pixels wide and ${completedPuzzleImg.getHeight()} pixels tall. Can you describe why this location is likely a good fit and what this might mean in the context of the puzzle?`
                             }
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: `data:image/jpeg;base64,${puzzlePieceBase64}`
-                            }
-                        }
-                    ]
+                        ],
+                        max_tokens: 300
+                    });
+
+                    console.log('GPT-4 analysis complete');
+                    res.json({
+                        matchCoordinates: { x, y, score },
+                        gptExplanation: gptResponse.choices[0].message.content
+                    });
+                } catch (gptError) {
+                    console.error('Error in GPT-4 analysis:', gptError);
+                    return res.status(500).json({ error: 'Error in GPT-4 analysis', details: gptError.message });
                 }
-            ],
-            max_tokens: 300
-        });
+            } else {
+                console.log('Match score too low:', score);
+                res.json({
+                    error: 'Could not confidently match the puzzle piece in the completed puzzle.',
+                    score: score,
+                    matchCoordinates: { x, y }
+                });
+            }
+        } catch (error) {
+            console.error('Unexpected error:', error);
+            res.status(500).json({ error: 'Internal server error', details: error.message });
+        } finally {
+            // Clean up files
+            if (completedPuzzlePath) fs.unlinkSync(completedPuzzlePath);
+            if (puzzlePiecePath) fs.unlinkSync(puzzlePiecePath);
+        }
+    });
 
-        const aiResponse = response.choices[0].message.content;
-        console.log("AI Response:", aiResponse);  // Log the full AI response
+    console.log('GPT-4 analysis completed');
 
-        // Parse the AI response to extract coordinates and radius
-        const match = aiResponse.match(/coordinates \((\d+(?:\.\d+)?), (\d+(?:\.\d+)?)\) with a radius of (\d+(?:\.\d+)?)/);
-        
-        if (match) {
-            const [, x, y, radius] = match.map(Number);
-            
-            res.json({
-                circleInfo: { x, y, radius },
-                originalResponse: aiResponse
-            });
-        } else {
-            console.log("Failed to parse AI response. Regex didn't match.");
-            // If we can't parse the coordinates, send back the original response
-            res.json({
-                error: 'Unable to parse coordinates',
-                originalResponse: aiResponse
-            });
+    // Helper function for template matching
+    async function findBestMatch(largeImg, smallImg) {
+        const scaleFactor = 0.5; // Adjust this value to balance speed and accuracy
+        const scaledLargeImg = largeImg.scale(scaleFactor);
+        const scaledSmallImg = smallImg.scale(scaleFactor);
+
+        let bestScore = -Infinity;
+        let bestX = 0;
+        let bestY = 0;
+
+        console.log('Scaled image sizes:', 
+                    'Large:', scaledLargeImg.getWidth(), 'x', scaledLargeImg.getHeight(),
+                    'Small:', scaledSmallImg.getWidth(), 'x', scaledSmallImg.getHeight());
+
+        for (let y = 0; y <= scaledLargeImg.getHeight() - scaledSmallImg.getHeight(); y++) {
+            for (let x = 0; x <= scaledLargeImg.getWidth() - scaledSmallImg.getWidth(); x++) {
+                let score = 0;
+                let totalPixels = 0;
+
+                scaledSmallImg.scan(0, 0, scaledSmallImg.getWidth(), scaledSmallImg.getHeight(), function(sx, sy, idx) {
+                    const largePixel = Jimp.intToRGBA(scaledLargeImg.getPixelColor(x + sx, y + sy));
+                    const smallPixel = Jimp.intToRGBA(scaledSmallImg.getPixelColor(sx, sy));
+                    
+                    // Calculate color difference
+                    const diff = Math.abs(largePixel.r - smallPixel.r) + 
+                                 Math.abs(largePixel.g - smallPixel.g) + 
+                                 Math.abs(largePixel.b - smallPixel.b);
+                    
+                    score += (765 - diff) / 765; // 765 is max difference (255 * 3)
+                    totalPixels++;
+                });
+
+                score /= totalPixels; // Normalize score
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestX = x;
+                    bestY = y;
+                }
+            }
         }
 
-    } catch (error) {
-        console.error('Detailed error:', error);
-        res.status(500).json({ error: 'Internal server error', details: error.message });
-    } finally {
-        // Clean up uploaded files
-        if (req.files['completedPuzzle']) {
-            fs.unlinkSync(req.files['completedPuzzle'][0].path);
-        }
-        if (req.files['puzzlePiece']) {
-            fs.unlinkSync(req.files['puzzlePiece'][0].path);
-        }
+        console.log('Best match found:', { x: bestX / scaleFactor, y: bestY / scaleFactor, score: bestScore });
+
+        return { x: bestX / scaleFactor, y: bestY / scaleFactor, score: bestScore };
     }
-});
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+    app.use(express.static('public'));
+
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
+
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+
+} catch (error) {
+    console.error('An error occurred while starting the server:', error);
+}

@@ -1,3 +1,5 @@
+console.log('Script loaded');
+
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('uploadForm');
     const resultDiv = document.getElementById('result');
@@ -57,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     form.addEventListener('submit', async (e) => {
+        console.log('Form submission started');
         e.preventDefault();
         
         const completedPuzzle = document.getElementById('completedPuzzle').files[0];
@@ -81,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(e.target);
         
         try {
+            console.log('Sending fetch request to /upload');
             const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
@@ -120,4 +124,31 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('result').style.display = 'block';
         }
     });
+
+    const analyzeButton = document.getElementById('uploadBtn');
+    if (analyzeButton) {
+        analyzeButton.addEventListener('click', function() {
+            const formData = new FormData();
+            const completedPuzzle = document.getElementById('completedPuzzle').files[0];
+            const puzzlePiece = document.getElementById('puzzlePiece').files[0];
+            
+            formData.append('completedPuzzle', completedPuzzle);
+            formData.append('puzzlePiece', puzzlePiece);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+                // Handle the response data here
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        });
+    } else {
+        console.error('Analyze button not found');
+    }
 });
